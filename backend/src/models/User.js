@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: 'default-avatar.png'
   },
+  bio: {
+    type: String,
+    default: ''
+  },
   friends: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'

@@ -1,8 +1,34 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
 import auth from '../middleware/auth.js';
 import User from '../models/User.js';
 
 const router = express.Router();
+
+// 画像アップロード設定
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB制限
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      return cb(null, true);
+    }
+    cb(new Error('Invalid file type - only JPEG, JPG and PNG allowed'));
+  }
+});
 
 // ユーザープロフィールの取得
 router.get('/profile', auth, async (req, res) => {
@@ -87,6 +113,29 @@ router.get('/friends', auth, async (req, res) => {
     const user = await User.findById(req.userId)
       .populate('friends', 'username profileImage');
     res.json(user.friends);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// プロフィールの更新
+router.put('/profile', auth, upload.single('profileImage'), async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (req.body.bio !== undefined) {
+      user.bio = req.body.bio;
+    }
+
+    if (req.file) {
+      user.profileImage = req.file.filename;
+    }
+
+    await user.save();
+    res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
