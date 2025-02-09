@@ -7,6 +7,7 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import PostFeed from './components/post/PostFeed';
 import CreatePost from './components/post/CreatePost';
+import Profile from './components/profile/Profile';
 
 const theme = createTheme({
   palette: {
@@ -40,6 +41,14 @@ const App: React.FC = () => {
                       <CreatePost onPostCreated={() => {}} />
                       <PostFeed />
                     </>
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <PrivateRoute>
+                    <Profile />
                   </PrivateRoute>
                 }
               />
