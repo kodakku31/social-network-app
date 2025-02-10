@@ -1,92 +1,107 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
+interface User {
+  id: number;
+  username: string;
+  email: string;
+}
+
 interface AuthContextType {
-  isAuthenticated: boolean;
-  user: any;
+  user: User | null;
+  token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, username: string) => Promise<void>;
-  logout: () => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<void>;
+  logout: () => void;
+  isAuthenticated: boolean;
 }
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  token: null,
+  login: async () => {},
+  register: async () => {},
+  logout: () => {},
+  isAuthenticated: false
+});
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const useAuth = () => useContext(AuthContext);
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(!!token);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsAuthenticated(true);
-      // TODO: Validate token and fetch user data
-    }
+    const fetchUser = async () => {
+      const storedToken = localStorage.getItem('token');
+      if (storedToken) {
+        try {
+          const response = await axios.get('http://localhost:3001/api/auth/profile', {
+            headers: { Authorization: `Bearer ${storedToken}` }
+          });
+          setUser(response.data);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('プロフィール取得エラー:', error);
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      }
+    };
+
+    fetchUser();
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
       const response = await axios.post('http://localhost:3001/api/auth/login', {
         email,
-        password,
+        password
       });
-      const { token } = response.data;
-      localStorage.setItem('token', token);
+
+      const { token: newToken, user: userData } = response.data;
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      setUser(userData);
       setIsAuthenticated(true);
-    } catch (error: any) {
-      console.error('Login error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.error || 'ログインに失敗しました');
+    } catch (error) {
+      console.error('Login error:', error);
+      throw new Error('ログインに失敗しました');
     }
   };
 
-  const register = async (email: string, password: string, username: string) => {
+  const register = async (username: string, email: string, password: string) => {
     try {
-      console.log('Registering with:', { email, username }); // デバッグ用
       const response = await axios.post('http://localhost:3001/api/auth/register', {
+        username,
         email,
-        password,
-        username
+        password
       });
-      console.log('Register response:', response.data); // デバッグ用
-      const { token } = response.data;
-      localStorage.setItem('token', token);
+
+      const { token: newToken, user: userData } = response.data;
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
+      setUser(userData);
       setIsAuthenticated(true);
-    } catch (error: any) {
-      console.error('Register error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.error || '登録に失敗しました');
+    } catch (error) {
+      console.error('Register error:', error);
+      throw new Error('登録に失敗しました');
     }
   };
 
-  const logout = async () => {
+  const logout = () => {
     localStorage.removeItem('token');
-    setIsAuthenticated(false);
+    setToken(null);
     setUser(null);
-  };
-
-  const value = {
-    isAuthenticated,
-    user,
-    login,
-    register,
-    logout,
+    setIsAuthenticated(false);
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export default AuthContext;

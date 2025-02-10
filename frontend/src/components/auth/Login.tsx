@@ -1,95 +1,83 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, TextField, Button, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
-
-interface LoginFormData {
-  email: string;
-  password: string;
-}
+import {
+    Container,
+    Paper,
+    TextField,
+    Button,
+    Typography,
+    Box,
+    Alert
+} from '@mui/material';
 
 const Login: React.FC = () => {
-  const navigate = useNavigate();
-  const { login } = useAuth();
-  const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
-    password: ''
-  });
-  const [error, setError] = useState<string>('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const { login } = useAuth();
+    const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    try {
-      await login(formData.email, formData.password);
-      navigate('/');
-    } catch (error) {
-      setError('ログインに失敗しました。');
-    }
-  };
+        try {
+            await login(email, password);
+            navigate('/');
+        } catch (err: any) {
+            console.error('Login error:', err);
+            setError(err.message || 'ログインに失敗しました');
+        }
+    };
 
-  return (
-    <Container maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Typography component="h1" variant="h5">
-          ログイン
-        </Typography>
-        {error && (
-          <Typography color="error" sx={{ mt: 2 }}>
-            {error}
-          </Typography>
-        )}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="メールアドレス"
-            name="email"
-            autoComplete="email"
-            autoFocus
-            value={formData.email}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="パスワード"
-            type="password"
-            id="password"
-            autoComplete="current-password"
-            value={formData.password}
-            onChange={handleChange}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-          >
-            ログイン
-          </Button>
-        </Box>
-      </Box>
-    </Container>
-  );
+    return (
+        <Container maxWidth="sm">
+            <Box sx={{ mt: 8 }}>
+                <Paper elevation={3} sx={{ p: 4 }}>
+                    <Typography variant="h4" component="h1" gutterBottom align="center">
+                        ログイン
+                    </Typography>
+
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error}
+                        </Alert>
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        <TextField
+                            fullWidth
+                            label="メールアドレス"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            margin="normal"
+                            required
+                        />
+                        <TextField
+                            fullWidth
+                            label="パスワード"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            margin="normal"
+                            required
+                        />
+                        <Button
+                            type="submit"
+                            fullWidth
+                            variant="contained"
+                            color="primary"
+                            sx={{ mt: 3 }}
+                        >
+                            ログイン
+                        </Button>
+                    </form>
+                </Paper>
+            </Box>
+        </Container>
+    );
 };
 
 export default Login;

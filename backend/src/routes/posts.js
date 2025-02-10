@@ -1,118 +1,186 @@
-import express from 'express';
-import multer from 'multer';
-import path from 'path';
-import auth from '../middleware/auth.js';
-import Post from '../models/Post.js';
-import User from '../models/User.js';
-
+const express = require('express');
 const router = express.Router();
+const auth = require('../middleware/auth');
+const db = require('../config/database');
 
-// 画像アップロード設定
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB制限
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
-      return cb(null, true);
-    }
-    cb(new Error('Invalid file type - only JPEG, JPG and PNG allowed'));
-  }
-});
-
-// 新規投稿の作成
-router.post('/', auth, upload.single('image'), async (req, res) => {
-  try {
+// 投稿を作成
+router.post('/', auth, async (req, res) => {
     const { content } = req.body;
-    const post = new Post({
-      author: req.userId,
-      content,
-      image: req.file ? req.file.filename : undefined
-    });
+    const userId = req.user.id;
 
-    await post.save();
-    await post.populate('author', 'username profileImage');
-    
-    res.status(201).json(post);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// フィードの取得
-router.get('/feed', auth, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId);
-    const posts = await Post.find({
-      $or: [
-        { author: { $in: [...user.friends, req.userId] } }
-      ]
-    })
-    .sort('-createdAt')
-    .populate('author', 'username profileImage')
-    .populate('comments.user', 'username profileImage');
-
-    res.json(posts);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// いいねの追加/削除
-router.post('/:postId/like', auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.postId);
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    if (!content) {
+        return res.status(400).json({ error: '投稿内容は必須です' });
     }
 
-    const likeIndex = post.likes.indexOf(req.userId);
-    if (likeIndex === -1) {
-      post.likes.push(req.userId);
-    } else {
-      post.likes.splice(likeIndex, 1);
-    }
+    try {
+        const result = await new Promise((resolve, reject) => {
+            const query = 'INSERT INTO posts (user_id, content, created_at) VALUES (?, ?, datetime("now"))';
+            db.run(query, [userId, content], function(err) {
+                if (err) reject(err);
+                resolve(this);
+            });
+        });
 
-    await post.save();
-    res.json(post);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+        const post = await new Promise((resolve, reject) => {
+            const query = `
+                SELECT p.*, u.username
+                FROM posts p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.id = ?
+            `;
+            db.get(query, [result.lastID], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+
+        res.status(201).json(post);
+    } catch (error) {
+        console.error('投稿作成エラー:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+    }
 });
 
-// コメントの追加
-router.post('/:postId/comments', auth, async (req, res) => {
-  try {
+// 全ての投稿を取得
+router.get('/', async (req, res) => {
+    try {
+        const posts = await new Promise((resolve, reject) => {
+            const query = `
+                SELECT p.*, u.username,
+                       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
+                FROM posts p
+                JOIN users u ON p.user_id = u.id
+                ORDER BY p.created_at DESC
+            `;
+            db.all(query, [], (err, rows) => {
+                if (err) reject(err);
+                resolve(rows);
+            });
+        });
+
+        res.json(posts);
+    } catch (error) {
+        console.error('投稿取得エラー:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+    }
+});
+
+// 特定の投稿を取得
+router.get('/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const post = await new Promise((resolve, reject) => {
+            const query = `
+                SELECT p.*, u.username,
+                       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
+                FROM posts p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.id = ?
+            `;
+            db.get(query, [id], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+
+        if (!post) {
+            return res.status(404).json({ error: '投稿が見つかりません' });
+        }
+
+        res.json(post);
+    } catch (error) {
+        console.error('投稿取得エラー:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+    }
+});
+
+// 投稿を更新
+router.put('/:id', auth, async (req, res) => {
+    const { id } = req.params;
     const { content } = req.body;
-    const post = await Post.findById(req.params.postId);
-    
-    if (!post) {
-      return res.status(404).json({ message: 'Post not found' });
+    const userId = req.user.id;
+
+    if (!content) {
+        return res.status(400).json({ error: '投稿内容は必須です' });
     }
 
-    post.comments.push({
-      user: req.userId,
-      content
-    });
+    try {
+        const post = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM posts WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
 
-    await post.save();
-    await post.populate('comments.user', 'username profileImage');
-    
-    res.json(post);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+        if (!post) {
+            return res.status(404).json({ error: '投稿が見つかりません' });
+        }
+
+        if (post.user_id !== userId) {
+            return res.status(403).json({ error: 'この投稿を編集する権限がありません' });
+        }
+
+        await new Promise((resolve, reject) => {
+            db.run('UPDATE posts SET content = ? WHERE id = ?', [content, id], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+
+        const updatedPost = await new Promise((resolve, reject) => {
+            const query = `
+                SELECT p.*, u.username
+                FROM posts p
+                JOIN users u ON p.user_id = u.id
+                WHERE p.id = ?
+            `;
+            db.get(query, [id], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+
+        res.json(updatedPost);
+    } catch (error) {
+        console.error('投稿更新エラー:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+    }
 });
 
-export default router;
+// 投稿を削除
+router.delete('/:id', auth, async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    try {
+        const post = await new Promise((resolve, reject) => {
+            db.get('SELECT * FROM posts WHERE id = ?', [id], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+
+        if (!post) {
+            return res.status(404).json({ error: '投稿が見つかりません' });
+        }
+
+        if (post.user_id !== userId) {
+            return res.status(403).json({ error: 'この投稿を削除する権限がありません' });
+        }
+
+        await new Promise((resolve, reject) => {
+            db.run('DELETE FROM posts WHERE id = ?', [id], (err) => {
+                if (err) reject(err);
+                resolve();
+            });
+        });
+
+        res.json({ message: '投稿が削除されました' });
+    } catch (error) {
+        console.error('投稿削除エラー:', error);
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+    }
+});
+
+module.exports = router;

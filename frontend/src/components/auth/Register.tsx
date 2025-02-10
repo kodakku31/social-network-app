@@ -1,135 +1,113 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Box, TextField, Button, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
-
-interface RegisterFormData {
-  username: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-}
+import {
+    Container,
+    Paper,
+    TextField,
+    Button,
+    Typography,
+    Box,
+    Alert
+} from '@mui/material';
 
 const Register: React.FC = () => {
-  const navigate = useNavigate();
-  const { register } = useAuth();
-  const [formData, setFormData] = useState<RegisterFormData>({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  });
-  const [error, setError] = useState<string>('');
+    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const { register } = useAuth();
+    const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError('');
+        // 入力値の検証
+        if (!username || !email || !password) {
+            setError('すべての項目を入力してください');
+            return;
+        }
 
-    if (formData.password !== formData.confirmPassword) {
-      setError('パスワードが一致しません。');
-      return;
-    }
+        // メールアドレスの形式を検証
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setError('有効なメールアドレスを入力してください');
+            return;
+        }
 
-    if (formData.password.length < 6) {
-      setError('パスワードは6文字以上である必要があります。');
-      return;
-    }
+        // パスワードの長さを検証
+        if (password.length < 6) {
+            setError('パスワードは6文字以上で入力してください');
+            return;
+        }
 
-    try {
-      await register(formData.email, formData.password, formData.username);
-      navigate('/');
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      setError(error.message || '登録に失敗しました。');
-    }
-  };
+        try {
+            await register(username, email, password);
+            navigate('/');
+        } catch (err: any) {
+            console.error('Registration error:', err);
+            setError(err.message || '登録に失敗しました');
+        }
+    };
 
-  return (
-    <Container maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
-        <Typography component="h1" variant="h5">
-          アカウント登録
-        </Typography>
-        {error && (
-          <Typography color="error" sx={{ mt: 2 }}>
-            {error}
-          </Typography>
-        )}
-        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="username"
-            label="ユーザー名"
-            name="username"
-            autoComplete="username"
-            autoFocus
-            value={formData.username}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="メールアドレス"
-            name="email"
-            autoComplete="email"
-            value={formData.email}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="password"
-            label="パスワード"
-            type="password"
-            id="password"
-            autoComplete="new-password"
-            value={formData.password}
-            onChange={handleChange}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            name="confirmPassword"
-            label="パスワード（確認）"
-            type="password"
-            id="confirmPassword"
-            autoComplete="new-password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-          />
-          <Button
-            type="submit"
-            fullWidth
-            variant="contained"
-            sx={{ mt: 3, mb: 2 }}
-          >
-            登録
-          </Button>
-        </Box>
-      </Box>
-    </Container>
-  );
+    return (
+        <Container maxWidth="sm">
+            <Box sx={{ mt: 8 }}>
+                <Paper elevation={3} sx={{ p: 4 }}>
+                    <Typography variant="h4" component="h1" gutterBottom align="center">
+                        アカウント登録
+                    </Typography>
+
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error}
+                        </Alert>
+                    )}
+
+                    <form onSubmit={handleSubmit}>
+                        <TextField
+                            fullWidth
+                            label="ユーザー名"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            margin="normal"
+                            required
+                        />
+                        <TextField
+                            fullWidth
+                            label="メールアドレス"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            margin="normal"
+                            required
+                            helperText="例: user@example.com"
+                        />
+                        <TextField
+                            fullWidth
+                            label="パスワード"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            margin="normal"
+                            required
+                            helperText="6文字以上で入力してください"
+                        />
+                        <Button
+                            type="submit"
+                            fullWidth
+                            variant="contained"
+                            color="primary"
+                            sx={{ mt: 3 }}
+                        >
+                            登録
+                        </Button>
+                    </form>
+                </Paper>
+            </Box>
+        </Container>
+    );
 };
 
 export default Register;

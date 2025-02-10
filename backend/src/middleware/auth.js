@@ -1,44 +1,51 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = 'your-secret-key';
 
-module.exports = (req, res, next) => {
+const auth = async (req, res, next) => {
     try {
-        console.log('Auth Middleware - Headers:', req.headers);
-        
+        // トークンの取得
         const authHeader = req.headers.authorization;
-        if (!authHeader) {
-            console.log('No Authorization header found');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('No token provided or invalid format'); // デバッグログ
             return res.status(401).json({ error: '認証が必要です' });
         }
 
         const token = authHeader.split(' ')[1];
-        if (!token) {
-            console.log('No token found in Authorization header');
-            return res.status(401).json({ error: '認証トークンが必要です' });
+        console.log('Verifying token:', token.substring(0, 20) + '...'); // デバッグログ（セキュリティのため一部のみ表示）
+
+        // トークンの検証
+        const decoded = jwt.verify(token, JWT_SECRET);
+        console.log('Decoded token:', decoded); // デバッグログ
+
+        // ユーザーの取得
+        const user = await new Promise((resolve, reject) => {
+            const query = 'SELECT id, username, email FROM users WHERE id = ?';
+            db.get(query, [decoded.userId], (err, row) => {
+                if (err) reject(err);
+                resolve(row);
+            });
+        });
+
+        if (!user) {
+            console.log('User not found for token:', decoded.userId); // デバッグログ
+            return res.status(401).json({ error: 'ユーザーが見つかりません' });
         }
 
-        const decoded = jwt.verify(token, JWT_SECRET);
-        console.log('Decoded token:', decoded);
-
-        // ユーザーの存在確認
-        db.get('SELECT id, username, email FROM users WHERE id = ?', [decoded.userId], (err, user) => {
-            if (err) {
-                console.error('Database error:', err);
-                return res.status(500).json({ error: 'サーバーエラーが発生しました' });
-            }
-            if (!user) {
-                console.log('User not found:', decoded.userId);
-                return res.status(401).json({ error: 'ユーザーが見つかりません' });
-            }
-            
-            req.user = user;
-            console.log('User authenticated:', user);
-            next();
-        });
+        console.log('Authentication successful for user:', user.username); // デバッグログ
+        req.user = user;
+        next();
     } catch (error) {
-        console.error('Auth error:', error);
-        res.status(401).json({ error: '無効なトークンです' });
+        console.error('Authentication error:', error); // デバッグログ
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ error: '無効なトークンです' });
+        }
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'トークンの有効期限が切れています' });
+        }
+        res.status(500).json({ error: 'サーバーエラーが発生しました' });
     }
 };
+
+module.exports = auth;

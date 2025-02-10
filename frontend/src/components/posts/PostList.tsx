@@ -1,29 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Card, CardContent, Typography, Button, TextField } from '@mui/material';
-import axios from 'axios';
+import {
+    Box,
+    Card,
+    CardContent,
+    Typography,
+    TextField,
+    Button,
+    IconButton,
+    CardActions,
+    Divider,
+} from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CommentIcon from '@mui/icons-material/Comment';
 import { useAuth } from '../../contexts/AuthContext';
+import CommentList from '../comments/CommentList';
+import axios from 'axios';
 
 interface Post {
     id: number;
     content: string;
-    username: string;
     createdAt: string;
+    username: string;
     userId: number;
 }
 
 const PostList: React.FC = () => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [newPost, setNewPost] = useState('');
-    const [error, setError] = useState('');
-    const { isAuthenticated } = useAuth();
+    const [expandedPost, setExpandedPost] = useState<number | null>(null);
+    const { user, token } = useAuth();
 
     const fetchPosts = async () => {
         try {
             const response = await axios.get('http://localhost:3001/api/posts');
             setPosts(response.data);
         } catch (error) {
-            console.error('投稿の取得に失敗しました:', error);
-            setError('投稿の取得に失敗しました');
+            console.error('投稿取得エラー:', error);
         }
     };
 
@@ -31,94 +43,108 @@ const PostList: React.FC = () => {
         fetchPosts();
     }, []);
 
-    const handleCreatePost = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newPost.trim()) return;
+        if (!newPost.trim() || !user) return;
 
         try {
-            const token = localStorage.getItem('token');
             await axios.post(
                 'http://localhost:3001/api/posts',
                 { content: newPost },
-                { headers: { Authorization: `Bearer ${token}` } }
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
             );
             setNewPost('');
-            fetchPosts(); // 投稿リストを更新
+            fetchPosts();
         } catch (error) {
-            console.error('投稿の作成に失敗しました:', error);
-            setError('投稿の作成に失敗しました');
+            console.error('投稿エラー:', error);
         }
     };
 
-    const handleDeletePost = async (postId: number) => {
+    const handleDelete = async (postId: number) => {
         try {
-            const token = localStorage.getItem('token');
             await axios.delete(
                 `http://localhost:3001/api/posts/${postId}`,
-                { headers: { Authorization: `Bearer ${token}` } }
+                {
+                    headers: { Authorization: `Bearer ${token}` }
+                }
             );
-            fetchPosts(); // 投稿リストを更新
+            fetchPosts();
         } catch (error) {
-            console.error('投稿の削除に失敗しました:', error);
-            setError('投稿の削除に失敗しました');
+            console.error('削除エラー:', error);
         }
     };
 
     return (
-        <Box sx={{ maxWidth: 600, mx: 'auto', mt: 4 }}>
-            {isAuthenticated && (
-                <Box component="form" onSubmit={handleCreatePost} sx={{ mb: 4 }}>
-                    <TextField
-                        fullWidth
-                        multiline
-                        rows={3}
-                        variant="outlined"
-                        placeholder="投稿内容を入力..."
-                        value={newPost}
-                        onChange={(e) => setNewPost(e.target.value)}
-                        sx={{ mb: 2 }}
-                    />
-                    <Button
-                        type="submit"
-                        variant="contained"
-                        color="primary"
-                        disabled={!newPost.trim()}
-                    >
-                        投稿する
-                    </Button>
-                </Box>
-            )}
-
-            {error && (
-                <Typography color="error" sx={{ mb: 2 }}>
-                    {error}
-                </Typography>
+        <Box sx={{ maxWidth: 800, mx: 'auto', p: 2 }}>
+            {user && (
+                <Card sx={{ mb: 2 }}>
+                    <CardContent>
+                        <form onSubmit={handleSubmit}>
+                            <TextField
+                                fullWidth
+                                multiline
+                                rows={3}
+                                value={newPost}
+                                onChange={(e) => setNewPost(e.target.value)}
+                                placeholder="今何してる？"
+                                variant="outlined"
+                                sx={{ mb: 2 }}
+                            />
+                            <Button
+                                type="submit"
+                                variant="contained"
+                                color="primary"
+                                disabled={!newPost.trim()}
+                            >
+                                投稿する
+                            </Button>
+                        </form>
+                    </CardContent>
+                </Card>
             )}
 
             {posts.map((post) => (
                 <Card key={post.id} sx={{ mb: 2 }}>
                     <CardContent>
-                        <Typography variant="h6" component="div">
-                            {post.username}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {new Date(post.createdAt).toLocaleString()}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 2 }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                            <Typography variant="subtitle2" color="text.secondary">
+                                {post.username}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {new Date(post.createdAt).toLocaleString()}
+                            </Typography>
+                        </Box>
+                        <Typography variant="body1" component="div" sx={{ whiteSpace: 'pre-wrap' }}>
                             {post.content}
                         </Typography>
-                        {isAuthenticated && (
-                            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button
-                                    size="small"
-                                    color="error"
-                                    onClick={() => handleDeletePost(post.id)}
-                                >
-                                    削除
-                                </Button>
-                            </Box>
-                        )}
                     </CardContent>
+                    <CardActions>
+                        <IconButton
+                            size="small"
+                            onClick={() => setExpandedPost(expandedPost === post.id ? null : post.id)}
+                        >
+                            <CommentIcon />
+                        </IconButton>
+                        {user?.id === post.userId && (
+                            <IconButton
+                                size="small"
+                                onClick={() => handleDelete(post.id)}
+                                sx={{ ml: 'auto' }}
+                            >
+                                <DeleteIcon />
+                            </IconButton>
+                        )}
+                    </CardActions>
+                    {expandedPost === post.id && (
+                        <>
+                            <Divider />
+                            <Box sx={{ px: 2, py: 1 }}>
+                                <CommentList postId={post.id} />
+                            </Box>
+                        </>
+                    )}
                 </Card>
             ))}
         </Box>
