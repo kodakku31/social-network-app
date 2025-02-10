@@ -39,3 +39,7 @@ Thumbs.db
 # Upload directory
 /backend/uploads/*
 !/backend/uploads/.gitkeep
+
+# Database
+*.db
+*.db-journal

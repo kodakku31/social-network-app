@@ -5,7 +5,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: any;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -44,22 +44,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { token } = response.data;
       localStorage.setItem('token', token);
       setIsAuthenticated(true);
-    } catch (error) {
-      throw new Error('Login failed');
+    } catch (error: any) {
+      console.error('Login error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || 'ログインに失敗しました');
     }
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, username: string) => {
     try {
+      console.log('Registering with:', { email, username }); // デバッグ用
       const response = await axios.post('http://localhost:3001/api/auth/register', {
         email,
         password,
+        username
       });
+      console.log('Register response:', response.data); // デバッグ用
       const { token } = response.data;
       localStorage.setItem('token', token);
       setIsAuthenticated(true);
-    } catch (error) {
-      throw new Error('Registration failed');
+    } catch (error: any) {
+      console.error('Register error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || '登録に失敗しました');
     }
   };
 

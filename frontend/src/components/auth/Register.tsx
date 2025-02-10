@@ -31,15 +31,24 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError('');
+
     if (formData.password !== formData.confirmPassword) {
       setError('パスワードが一致しません。');
       return;
     }
+
+    if (formData.password.length < 6) {
+      setError('パスワードは6文字以上である必要があります。');
+      return;
+    }
+
     try {
-      await register(formData.email, formData.password);
+      await register(formData.email, formData.password, formData.username);
       navigate('/');
-    } catch (error) {
-      setError('登録に失敗しました。');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || '登録に失敗しました。');
     }
   };
 
