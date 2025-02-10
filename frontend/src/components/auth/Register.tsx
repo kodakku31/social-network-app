@@ -1,37 +1,45 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  TextField,
-  Button,
-  Typography,
-  Container,
-  Alert
-} from '@mui/material';
+import { Container, Box, TextField, Button, Typography } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
 
+interface RegisterFormData {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 const Register: React.FC = () => {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
   const navigate = useNavigate();
   const { register } = useAuth();
+  const [formData, setFormData] = useState<RegisterFormData>({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+  const [error, setError] = useState<string>('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      setError('パスワードが一致しません');
+    if (formData.password !== formData.confirmPassword) {
+      setError('パスワードが一致しません。');
       return;
     }
-
     try {
-      await register(username, email, password);
+      await register(formData.email, formData.password);
       navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.message || '登録に失敗しました');
+    } catch (error) {
+      setError('登録に失敗しました。');
     }
   };
 
@@ -49,9 +57,9 @@ const Register: React.FC = () => {
           アカウント登録
         </Typography>
         {error && (
-          <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
+          <Typography color="error" sx={{ mt: 2 }}>
             {error}
-          </Alert>
+          </Typography>
         )}
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
           <TextField
@@ -63,8 +71,8 @@ const Register: React.FC = () => {
             name="username"
             autoComplete="username"
             autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={formData.username}
+            onChange={handleChange}
           />
           <TextField
             margin="normal"
@@ -74,8 +82,8 @@ const Register: React.FC = () => {
             label="メールアドレス"
             name="email"
             autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={formData.email}
+            onChange={handleChange}
           />
           <TextField
             margin="normal"
@@ -86,8 +94,8 @@ const Register: React.FC = () => {
             type="password"
             id="password"
             autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={formData.password}
+            onChange={handleChange}
           />
           <TextField
             margin="normal"
@@ -97,8 +105,9 @@ const Register: React.FC = () => {
             label="パスワード（確認）"
             type="password"
             id="confirmPassword"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
           />
           <Button
             type="submit"
