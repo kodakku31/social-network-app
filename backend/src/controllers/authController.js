@@ -9,27 +9,57 @@ exports.register = async (req, res) => {
     const { username, email, password } = req.body;
     console.log('Registration attempt:', { username, email }); // デバッグログ
 
-    if (!username || !email || !password) {
-        console.log('Missing required fields'); // デバッグログ
-        return res.status(400).json({ error: 'すべての項目を入力してください' });
-    }
-
     try {
-        // メールアドレスとユーザー名の重複チェック
-        const checkQuery = 'SELECT * FROM users WHERE email = ? OR username = ?';
-        const existingUser = await new Promise((resolve, reject) => {
-            db.get(checkQuery, [email, username], (err, row) => {
-                if (err) reject(err);
+        // 入力値の検証
+        if (!username || !email || !password) {
+            console.log('Missing required fields'); // デバッグログ
+            return res.status(400).json({ error: 'すべての項目を入力してください' });
+        }
+
+        // メールアドレスの形式チェック
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: '有効なメールアドレスを入力してください' });
+        }
+
+        // パスワードの長さチェック
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'パスワードは6文字以上である必要があります' });
+        }
+
+        // メールアドレスの重複チェック
+        const emailCheckQuery = 'SELECT id, email FROM users WHERE email = ?';
+        const existingEmail = await new Promise((resolve, reject) => {
+            db.get(emailCheckQuery, [email], (err, row) => {
+                if (err) {
+                    console.error('Database query error (email check):', err);
+                    reject(err);
+                }
                 resolve(row);
             });
         });
 
-        if (existingUser) {
-            console.log('User already exists:', existingUser); // デバッグログ
+        if (existingEmail) {
             return res.status(400).json({ 
-                error: existingUser.email === email 
-                    ? 'このメールアドレスは既に使用されています' 
-                    : 'このユーザー名は既に使用されています'
+                error: 'このメールアドレスは既に使用されています'
+            });
+        }
+
+        // ユーザー名の重複チェック
+        const usernameCheckQuery = 'SELECT id, username FROM users WHERE username = ?';
+        const existingUsername = await new Promise((resolve, reject) => {
+            db.get(usernameCheckQuery, [username], (err, row) => {
+                if (err) {
+                    console.error('Database query error (username check):', err);
+                    reject(err);
+                }
+                resolve(row);
+            });
+        });
+
+        if (existingUsername) {
+            return res.status(400).json({ 
+                error: 'このユーザー名は既に使用されています'
             });
         }
 
@@ -40,7 +70,10 @@ exports.register = async (req, res) => {
         const insertQuery = 'INSERT INTO users (username, email, password) VALUES (?, ?, ?)';
         const result = await new Promise((resolve, reject) => {
             db.run(insertQuery, [username, email, hashedPassword], function(err) {
-                if (err) reject(err);
+                if (err) {
+                    console.error('Database insert error:', err);
+                    reject(err);
+                }
                 resolve(this);
             });
         });
@@ -56,7 +89,13 @@ exports.register = async (req, res) => {
         const userQuery = 'SELECT id, username, email FROM users WHERE id = ?';
         const user = await new Promise((resolve, reject) => {
             db.get(userQuery, [result.lastID], (err, row) => {
-                if (err) reject(err);
+                if (err) {
+                    console.error('Database query error (user fetch):', err);
+                    reject(err);
+                }
+                if (!row) {
+                    reject(new Error('Created user not found'));
+                }
                 resolve(row);
             });
         });
@@ -69,7 +108,10 @@ exports.register = async (req, res) => {
         });
     } catch (error) {
         console.error('Registration error:', error); // デバッグログ
-        res.status(500).json({ error: 'サーバーエラーが発生しました' });
+        res.status(500).json({ 
+            error: 'サーバーエラーが発生しました',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
 

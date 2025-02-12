@@ -86,9 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(newToken);
       setUser(userData);
       setIsAuthenticated(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Register error:', error);
-      throw new Error('登録に失敗しました');
+      if (error.response && error.response.data && error.response.data.error) {
+        throw new Error(error.response.data.error);
+      } else {
+        throw new Error('登録に失敗しました');
+      }
     }
   };
 

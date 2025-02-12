@@ -5,9 +5,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import PostList from './components/posts/PostList';
+import Profile from './components/profile/Profile';
 
 const Navigation = () => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
 
   return (
     <AppBar position="static">
@@ -19,6 +20,13 @@ const Navigation = () => {
           <>
             <Button color="inherit" component={Link} to="/">
               ホーム
+            </Button>
+            <Button 
+              color="inherit" 
+              component={Link} 
+              to={`/profile/${user?.id}`}
+            >
+              プロフィール
             </Button>
             <Button color="inherit" onClick={logout}>
               ログアウト
@@ -45,11 +53,12 @@ const App: React.FC = () => {
       <Router>
         <Navigation />
         <Container>
-          <Box sx={{ mt: 4 }}>
+          <Box sx={{ mt: 3 }}>
             <Routes>
               <Route path="/" element={<PostList />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/profile/:userId" element={<Profile />} />
             </Routes>
           </Box>
         </Container>
